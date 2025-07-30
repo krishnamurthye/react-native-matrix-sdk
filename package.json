@@ -46,7 +46,7 @@
     "ubrn:ios:generate": "ubrn generate all --config ubrn.yaml build/RnMatrixRustSdk.xcframework/ios-arm64_x86_64/libmatrix_sdk_ffi.a && del-cli swift && mv ios/swift swift && (cd example/ios && pod install)",
     "ubrn:checkout": "( test -d rust_modules/matrix-rust-sdk && git -C rust_modules/matrix-rust-sdk reset --hard HEAD ); ubrn checkout --config ubrn.yaml && ( cd rust_modules/matrix-rust-sdk && git apply ../../matrix-rust-sdk.patch )",
     "ubrn:clean": "del-cli -v cpp android/src/main/java ios \"src/Native*\" src/generated \"src/index.ts*\"",
-    "generate": "yarn ubrn:clean && yarn ubrn:checkout && yarn ubrn:android:build && yarn ubrn:ios:build && yarn ubrn:ios:generate",
+    "generate": "yarn ubrn:clean && yarn ubrn:ios:build && yarn ubrn:ios:generate",
     "generate:android": "yarn ubrn:clean && yarn ubrn:checkout && yarn ubrn:android:build --and-generate",
     "generate:ios": "yarn ubrn:clean && yarn ubrn:checkout && yarn ubrn:ios:build && yarn ubrn:ios:generate",
     "generate:release": "yarn ubrn:clean && yarn ubrn:checkout && yarn ubrn:android:build:release && yarn ubrn:ios:build:release && yarn ubrn:ios:generate",
