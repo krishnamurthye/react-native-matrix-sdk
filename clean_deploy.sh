@@ -58,6 +58,8 @@ cp -r "$SDK_DIR/android/src" "$APP_MODULE/android/"
 cp -r "$SDK_DIR/android/generated" "$APP_MODULE/android/" 2>/dev/null || true
 cp "$SDK_DIR/android/build.gradle" "$APP_MODULE/android/"
 cp "$SDK_DIR/android/gradle.properties" "$APP_MODULE/android/" 2>/dev/null || true
+cp "$SDK_DIR/android/CMakeLists.txt" "$APP_MODULE/android/"
+cp "$SDK_DIR/android/cpp-adapter.cpp" "$APP_MODULE/android/"
 
 # iOS files (if they exist)
 if [ -d "$SDK_DIR/ios" ]; then
