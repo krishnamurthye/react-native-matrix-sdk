@@ -218,6 +218,10 @@ interface NativeModuleInterface {
     callbackUrl: Uint8Array
   ): bigint;
   ubrn_uniffi_matrix_sdk_ffi_fn_method_client_logout(ptr: bigint): bigint;
+  ubrn_uniffi_matrix_sdk_ffi_fn_method_client_normal_sync(
+    ptr: bigint,
+    uniffi_out_err: UniffiRustCallStatus
+  ): bigint;
   ubrn_uniffi_matrix_sdk_ffi_fn_method_client_notification_client(
     ptr: bigint,
     processSetup: Uint8Array
@@ -772,6 +776,28 @@ interface NativeModuleInterface {
     ptr: bigint,
     uniffi_out_err: UniffiRustCallStatus
   ): Uint8Array;
+  ubrn_uniffi_matrix_sdk_ffi_fn_clone_normalsyncmanager(
+    ptr: bigint,
+    uniffi_out_err: UniffiRustCallStatus
+  ): bigint;
+  ubrn_uniffi_matrix_sdk_ffi_fn_free_normalsyncmanager(
+    ptr: bigint,
+    uniffi_out_err: UniffiRustCallStatus
+  ): void;
+  ubrn_uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_start_sync_loop(
+    ptr: bigint,
+    timeoutMs: Uint8Array,
+    fullState: number
+  ): bigint;
+  ubrn_uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_sync_once(
+    ptr: bigint,
+    timeoutMs: Uint8Array,
+    since: Uint8Array
+  ): bigint;
+  ubrn_uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_sync_with_config(
+    ptr: bigint,
+    config: Uint8Array
+  ): bigint;
   ubrn_uniffi_matrix_sdk_ffi_fn_clone_notificationclient(
     ptr: bigint,
     uniffi_out_err: UniffiRustCallStatus
@@ -2501,6 +2527,7 @@ interface NativeModuleInterface {
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_login_with_email(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_login_with_oidc_callback(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_logout(): number;
+  ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_normal_sync(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_notification_client(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_observe_account_data_event(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_observe_room_account_data_event(): number;
@@ -2609,6 +2636,9 @@ interface NativeModuleInterface {
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_persist(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_mediasource_to_json(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_mediasource_url(): number;
+  ubrn_uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_start_sync_loop(): number;
+  ubrn_uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once(): number;
+  ubrn_uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_with_config(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notifications(): number;
   ubrn_uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_room(): number;
@@ -2948,6 +2978,10 @@ interface NativeModuleInterface {
     uniffi_out_err: UniffiRustCallStatus
   ): UniffiRustArcPtr;
   ubrn_uniffi_internal_fn_method_mediasource_ffi__bless_pointer(
+    pointer: bigint,
+    uniffi_out_err: UniffiRustCallStatus
+  ): UniffiRustArcPtr;
+  ubrn_uniffi_internal_fn_method_normalsyncmanager_ffi__bless_pointer(
     pointer: bigint,
     uniffi_out_err: UniffiRustCallStatus
   ): UniffiRustArcPtr;

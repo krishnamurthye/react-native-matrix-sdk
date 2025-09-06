@@ -4592,6 +4592,161 @@ const FfiConverterTypeMsgLikeContent = (() => {
   return new FFIConverter();
 })();
 
+/**
+ * Configuration for normal sync
+ */
+export type NormalSyncConfig = {
+  /**
+   * Timeout in milliseconds for long polling
+   */
+  timeoutMs: /*u32*/ number;
+  /**
+   * Whether to request full state on first sync
+   */
+  fullState: boolean;
+  /**
+   * Set presence state (online, offline, unavailable)
+   */
+  setPresence: string | undefined;
+};
+
+/**
+ * Generated factory for {@link NormalSyncConfig} record objects.
+ */
+export const NormalSyncConfig = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord<NormalSyncConfig, ReturnType<typeof defaults>>(
+      defaults
+    );
+  })();
+  return Object.freeze({
+    /**
+     * Create a frozen instance of {@link NormalSyncConfig}, with defaults specified
+     * in Rust, in the {@link matrix_sdk_ffi} crate.
+     */
+    create,
+
+    /**
+     * Create a frozen instance of {@link NormalSyncConfig}, with defaults specified
+     * in Rust, in the {@link matrix_sdk_ffi} crate.
+     */
+    new: create,
+
+    /**
+     * Defaults specified in the {@link matrix_sdk_ffi} crate.
+     */
+    defaults: () => Object.freeze(defaults()) as Partial<NormalSyncConfig>,
+  });
+})();
+
+const FfiConverterTypeNormalSyncConfig = (() => {
+  type TypeName = NormalSyncConfig;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    read(from: RustBuffer): TypeName {
+      return {
+        timeoutMs: FfiConverterUInt32.read(from),
+        fullState: FfiConverterBool.read(from),
+        setPresence: FfiConverterOptionalString.read(from),
+      };
+    }
+    write(value: TypeName, into: RustBuffer): void {
+      FfiConverterUInt32.write(value.timeoutMs, into);
+      FfiConverterBool.write(value.fullState, into);
+      FfiConverterOptionalString.write(value.setPresence, into);
+    }
+    allocationSize(value: TypeName): number {
+      return (
+        FfiConverterUInt32.allocationSize(value.timeoutMs) +
+        FfiConverterBool.allocationSize(value.fullState) +
+        FfiConverterOptionalString.allocationSize(value.setPresence)
+      );
+    }
+  }
+  return new FFIConverter();
+})();
+
+/**
+ * Result from a normal sync operation
+ */
+export type NormalSyncResult = {
+  /**
+   * The next batch token for incremental sync
+   */
+  nextBatch: string;
+  /**
+   * Number of rooms with updates
+   */
+  roomsUpdated: /*u32*/ number;
+  /**
+   * Whether there were presence updates
+   */
+  hasPresenceUpdates: boolean;
+  /**
+   * Whether there were to-device messages
+   */
+  hasToDeviceMessages: boolean;
+};
+
+/**
+ * Generated factory for {@link NormalSyncResult} record objects.
+ */
+export const NormalSyncResult = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord<NormalSyncResult, ReturnType<typeof defaults>>(
+      defaults
+    );
+  })();
+  return Object.freeze({
+    /**
+     * Create a frozen instance of {@link NormalSyncResult}, with defaults specified
+     * in Rust, in the {@link matrix_sdk_ffi} crate.
+     */
+    create,
+
+    /**
+     * Create a frozen instance of {@link NormalSyncResult}, with defaults specified
+     * in Rust, in the {@link matrix_sdk_ffi} crate.
+     */
+    new: create,
+
+    /**
+     * Defaults specified in the {@link matrix_sdk_ffi} crate.
+     */
+    defaults: () => Object.freeze(defaults()) as Partial<NormalSyncResult>,
+  });
+})();
+
+const FfiConverterTypeNormalSyncResult = (() => {
+  type TypeName = NormalSyncResult;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    read(from: RustBuffer): TypeName {
+      return {
+        nextBatch: FfiConverterString.read(from),
+        roomsUpdated: FfiConverterUInt32.read(from),
+        hasPresenceUpdates: FfiConverterBool.read(from),
+        hasToDeviceMessages: FfiConverterBool.read(from),
+      };
+    }
+    write(value: TypeName, into: RustBuffer): void {
+      FfiConverterString.write(value.nextBatch, into);
+      FfiConverterUInt32.write(value.roomsUpdated, into);
+      FfiConverterBool.write(value.hasPresenceUpdates, into);
+      FfiConverterBool.write(value.hasToDeviceMessages, into);
+    }
+    allocationSize(value: TypeName): number {
+      return (
+        FfiConverterString.allocationSize(value.nextBatch) +
+        FfiConverterUInt32.allocationSize(value.roomsUpdated) +
+        FfiConverterBool.allocationSize(value.hasPresenceUpdates) +
+        FfiConverterBool.allocationSize(value.hasToDeviceMessages)
+      );
+    }
+  }
+  return new FFIConverter();
+})();
+
 export type NoticeMessageContent = {
   body: string;
   formatted: FormattedBody | undefined;
@@ -33738,6 +33893,11 @@ export interface ClientInterface {
    * Log the current user out.
    */
   logout(asyncOpts_?: { signal: AbortSignal }) /*throws*/ : Promise<void>;
+  /**
+   * Get the traditional sync manager for normal (v3) sync operations
+   * This provides access to the standard Matrix /sync endpoint
+   */
+  normalSync(): NormalSyncManagerInterface;
   notificationClient(
     processSetup: NotificationProcessSetup,
     asyncOpts_?: { signal: AbortSignal }
@@ -35838,6 +35998,24 @@ export class Client extends UniffiAbstractObject implements ClientInterface {
       }
       throw __error;
     }
+  }
+
+  /**
+   * Get the traditional sync manager for normal (v3) sync operations
+   * This provides access to the standard Matrix /sync endpoint
+   */
+  public normalSync(): NormalSyncManagerInterface {
+    return FfiConverterTypeNormalSyncManager.lift(
+      uniffiCaller.rustCall(
+        /*caller:*/ (callStatus) => {
+          return nativeModule().ubrn_uniffi_matrix_sdk_ffi_fn_method_client_normal_sync(
+            uniffiTypeClientObjectFactory.clonePointer(this),
+            callStatus
+          );
+        },
+        /*liftString:*/ FfiConverterString.lift
+      )
+    );
   }
 
   public async notificationClient(
@@ -40297,6 +40475,268 @@ const uniffiTypeMediaSourceObjectFactory: UniffiObjectFactory<MediaSourceInterfa
 // FfiConverter for MediaSourceInterface
 const FfiConverterTypeMediaSource = new FfiConverterObject(
   uniffiTypeMediaSourceObjectFactory
+);
+
+/**
+ * Manager for traditional/normal sync operations
+ */
+export interface NormalSyncManagerInterface {
+  /**
+   * Start a continuous sync loop helper
+   * This is a helper method - actual loop should be implemented in TypeScript
+   */
+  startSyncLoop(
+    timeoutMs: /*u32*/ number | undefined,
+    fullState: boolean,
+    asyncOpts_?: { signal: AbortSignal }
+  ) /*throws*/ : Promise<void>;
+  /**
+   * Perform a simple one-shot sync
+   */
+  syncOnce(
+    timeoutMs: /*u32*/ number | undefined,
+    since: string | undefined,
+    asyncOpts_?: { signal: AbortSignal }
+  ) /*throws*/ : Promise<string>;
+  /**
+   * Perform a single sync request with configuration
+   */
+  syncWithConfig(
+    config: NormalSyncConfig,
+    asyncOpts_?: { signal: AbortSignal }
+  ) /*throws*/ : Promise<NormalSyncResult>;
+}
+
+/**
+ * Manager for traditional/normal sync operations
+ */
+export class NormalSyncManager
+  extends UniffiAbstractObject
+  implements NormalSyncManagerInterface
+{
+  readonly [uniffiTypeNameSymbol] = 'NormalSyncManager';
+  readonly [destructorGuardSymbol]: UniffiRustArcPtr;
+  readonly [pointerLiteralSymbol]: UnsafeMutableRawPointer;
+  // No primary constructor declared for this class.
+  private constructor(pointer: UnsafeMutableRawPointer) {
+    super();
+    this[pointerLiteralSymbol] = pointer;
+    this[destructorGuardSymbol] =
+      uniffiTypeNormalSyncManagerObjectFactory.bless(pointer);
+  }
+
+  /**
+   * Start a continuous sync loop helper
+   * This is a helper method - actual loop should be implemented in TypeScript
+   */
+  public async startSyncLoop(
+    timeoutMs: /*u32*/ number | undefined,
+    fullState: boolean,
+    asyncOpts_?: { signal: AbortSignal }
+  ): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
+          return nativeModule().ubrn_uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_start_sync_loop(
+            uniffiTypeNormalSyncManagerObjectFactory.clonePointer(this),
+            FfiConverterOptionalUInt32.lower(timeoutMs),
+            FfiConverterBool.lower(fullState)
+          );
+        },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_poll_void,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_cancel_void,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_complete_void,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_free_void,
+        /*liftFunc:*/ (_v) => {},
+        /*liftString:*/ FfiConverterString.lift,
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeClientError.lift.bind(
+          FfiConverterTypeClientError
+        )
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
+
+  /**
+   * Perform a simple one-shot sync
+   */
+  public async syncOnce(
+    timeoutMs: /*u32*/ number | undefined,
+    since: string | undefined,
+    asyncOpts_?: { signal: AbortSignal }
+  ): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
+          return nativeModule().ubrn_uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_sync_once(
+            uniffiTypeNormalSyncManagerObjectFactory.clonePointer(this),
+            FfiConverterOptionalUInt32.lower(timeoutMs),
+            FfiConverterOptionalString.lower(since)
+          );
+        },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_cancel_rust_buffer,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+        /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
+        /*liftString:*/ FfiConverterString.lift,
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeClientError.lift.bind(
+          FfiConverterTypeClientError
+        )
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
+
+  /**
+   * Perform a single sync request with configuration
+   */
+  public async syncWithConfig(
+    config: NormalSyncConfig,
+    asyncOpts_?: { signal: AbortSignal }
+  ): Promise<NormalSyncResult> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
+          return nativeModule().ubrn_uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_sync_with_config(
+            uniffiTypeNormalSyncManagerObjectFactory.clonePointer(this),
+            FfiConverterTypeNormalSyncConfig.lower(config)
+          );
+        },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_cancel_rust_buffer,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+        /*liftFunc:*/ FfiConverterTypeNormalSyncResult.lift.bind(
+          FfiConverterTypeNormalSyncResult
+        ),
+        /*liftString:*/ FfiConverterString.lift,
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeClientError.lift.bind(
+          FfiConverterTypeClientError
+        )
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
+
+  /**
+   * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+   */
+  uniffiDestroy(): void {
+    const ptr = (this as any)[destructorGuardSymbol];
+    if (ptr !== undefined) {
+      const pointer = uniffiTypeNormalSyncManagerObjectFactory.pointer(this);
+      uniffiTypeNormalSyncManagerObjectFactory.freePointer(pointer);
+      uniffiTypeNormalSyncManagerObjectFactory.unbless(ptr);
+      delete (this as any)[destructorGuardSymbol];
+    }
+  }
+
+  static instanceOf(obj: any): obj is NormalSyncManager {
+    return uniffiTypeNormalSyncManagerObjectFactory.isConcreteType(obj);
+  }
+}
+
+const uniffiTypeNormalSyncManagerObjectFactory: UniffiObjectFactory<NormalSyncManagerInterface> =
+  (() => {
+    return {
+      create(pointer: UnsafeMutableRawPointer): NormalSyncManagerInterface {
+        const instance = Object.create(NormalSyncManager.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = 'NormalSyncManager';
+        return instance;
+      },
+
+      bless(p: UnsafeMutableRawPointer): UniffiRustArcPtr {
+        return uniffiCaller.rustCall(
+          /*caller:*/ (status) =>
+            nativeModule().ubrn_uniffi_internal_fn_method_normalsyncmanager_ffi__bless_pointer(
+              p,
+              status
+            ),
+          /*liftString:*/ FfiConverterString.lift
+        );
+      },
+
+      unbless(ptr: UniffiRustArcPtr) {
+        ptr.markDestroyed();
+      },
+
+      pointer(obj: NormalSyncManagerInterface): UnsafeMutableRawPointer {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+          throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+      },
+
+      clonePointer(obj: NormalSyncManagerInterface): UnsafeMutableRawPointer {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+          /*caller:*/ (callStatus) =>
+            nativeModule().ubrn_uniffi_matrix_sdk_ffi_fn_clone_normalsyncmanager(
+              pointer,
+              callStatus
+            ),
+          /*liftString:*/ FfiConverterString.lift
+        );
+      },
+
+      freePointer(pointer: UnsafeMutableRawPointer): void {
+        uniffiCaller.rustCall(
+          /*caller:*/ (callStatus) =>
+            nativeModule().ubrn_uniffi_matrix_sdk_ffi_fn_free_normalsyncmanager(
+              pointer,
+              callStatus
+            ),
+          /*liftString:*/ FfiConverterString.lift
+        );
+      },
+
+      isConcreteType(obj: any): obj is NormalSyncManagerInterface {
+        return (
+          obj[destructorGuardSymbol] &&
+          obj[uniffiTypeNameSymbol] === 'NormalSyncManager'
+        );
+      },
+    };
+  })();
+// FfiConverter for NormalSyncManagerInterface
+const FfiConverterTypeNormalSyncManager = new FfiConverterObject(
+  uniffiTypeNormalSyncManagerObjectFactory
 );
 
 export interface NotificationClientInterface {
@@ -54579,6 +55019,14 @@ function uniffiEnsureInitialized() {
     );
   }
   if (
+    nativeModule().ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_normal_sync() !==
+    63501
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      'uniffi_matrix_sdk_ffi_checksum_method_client_normal_sync'
+    );
+  }
+  if (
     nativeModule().ubrn_uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() !==
     37308
   ) {
@@ -55440,6 +55888,30 @@ function uniffiEnsureInitialized() {
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       'uniffi_matrix_sdk_ffi_checksum_method_mediasource_url'
+    );
+  }
+  if (
+    nativeModule().ubrn_uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_start_sync_loop() !==
+    16705
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      'uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_start_sync_loop'
+    );
+  }
+  if (
+    nativeModule().ubrn_uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once() !==
+    64596
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      'uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once'
+    );
+  }
+  if (
+    nativeModule().ubrn_uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_with_config() !==
+    20778
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      'uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_with_config'
     );
   }
   if (
@@ -57971,6 +58443,9 @@ export default Object.freeze({
     FfiConverterTypeMessageType,
     FfiConverterTypeMsgLikeContent,
     FfiConverterTypeMsgLikeKind,
+    FfiConverterTypeNormalSyncConfig,
+    FfiConverterTypeNormalSyncManager,
+    FfiConverterTypeNormalSyncResult,
     FfiConverterTypeNoticeMessageContent,
     FfiConverterTypeNotificationClient,
     FfiConverterTypeNotificationEvent,
