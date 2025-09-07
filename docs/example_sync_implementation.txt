@@ -1,0 +1,93 @@
+/**
+ * Example implementation of SDK-managed traditional sync
+ * 
+ * This shows how apps should use the traditional sync (v3 /sync) API
+ * with SDK management patterns when sliding sync is not available.
+ */
+
+export class SyncServiceExample {
+  private client: any;
+  private normalSyncManager: any;
+  private syncToken: string | null = null;
+  private isSyncing: boolean = false;
+
+  /**
+   * Initialize traditional sync manager
+   */
+  async initialize(client: any): Promise<void> {
+    this.client = client;
+    
+    // Check if traditional sync is available
+    if (typeof client.normalSync === 'function') {
+      this.normalSyncManager = await client.normalSync();
+      console.log('✅ Traditional sync manager initialized');
+    } else {
+      throw new Error('Traditional sync not available in SDK');
+    }
+  }
+
+  /**
+   * Start SDK-managed traditional sync
+   */
+  async startSync(): Promise<void> {
+    if (!this.normalSyncManager) {
+      throw new Error('Sync manager not initialized');
+    }
+
+    this.isSyncing = true;
+    this.runSyncLoop();
+  }
+
+  /**
+   * Run continuous sync loop
+   */
+  private async runSyncLoop(): Promise<void> {
+    while (this.isSyncing) {
+      try {
+        // Perform sync with 30s timeout (long-polling)
+        const nextBatch = await this.normalSyncManager.syncOnce(
+          30000, // 30 second timeout
+          this.syncToken || undefined
+        );
+        
+        // SDK has now processed and stored all sync data
+        this.syncToken = nextBatch;
+        
+        // The app can now read rooms from SDK's database
+        const rooms = await this.client.rooms();
+        console.log(`Synced ${rooms.length} rooms`);
+        
+      } catch (error) {
+        console.error('Sync error:', error);
+        // Implement exponential backoff here
+        await this.delay(5000);
+      }
+    }
+  }
+
+  /**
+   * Stop sync
+   */
+  async stopSync(): Promise<void> {
+    this.isSyncing = false;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+/**
+ * Usage example:
+ * 
+ * const syncService = new SyncServiceExample();
+ * await syncService.initialize(matrixClient);
+ * await syncService.startSync();
+ * 
+ * // SDK now handles:
+ * // - Processing sync responses
+ * // - Storing room data, messages, state
+ * // - Managing encryption/decryption
+ * // - Updating timelines
+ * // - All data is persisted in SDK's SQLite database
+ */
