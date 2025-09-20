@@ -37,8 +37,11 @@ async function downloadFile(url, dest) {
 async function downloadBinaries() {
   const buildDir = path.join(__dirname, '..', 'build');
   
-  // Check if binaries already exist
-  if (fs.existsSync(path.join(buildDir, 'RnMatrixRustSdk.xcframework'))) {
+  // Check if binaries already exist (iOS or Android)
+  const androidBinariesExist = fs.existsSync(path.join(__dirname, '..', 'android', 'src', 'main', 'jniLibs', 'arm64-v8a', 'libmatrix_sdk_ffi.so'));
+  const iosBinariesExist = fs.existsSync(path.join(buildDir, 'RnMatrixRustSdk.xcframework'));
+
+  if (androidBinariesExist || iosBinariesExist) {
     console.log('Binaries already exist, skipping download.');
     return;
   }
