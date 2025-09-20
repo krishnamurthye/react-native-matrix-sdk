@@ -5127,7 +5127,7 @@ index d818e46..11d6791 100644
  
  #[matrix_sdk_ffi_macros::export(callback_interface)]
 diff --git a/bindings/matrix-sdk-ffi/src/lib.rs b/bindings/matrix-sdk-ffi/src/lib.rs
-index 0707784..835aab0 100644
+index 0707784..94cf434 100644
 --- a/bindings/matrix-sdk-ffi/src/lib.rs
 +++ b/bindings/matrix-sdk-ffi/src/lib.rs
 @@ -12,6 +12,7 @@ mod event;
@@ -5138,14 +5138,14 @@ index 0707784..835aab0 100644
  mod notification;
  mod notification_settings;
  mod platform;
-@@ -31,6 +32,7 @@ mod timeline;
- mod tracing;
+@@ -32,6 +33,7 @@ mod tracing;
  mod utd;
  mod utils;
-+mod voip;
  mod widget;
++mod voip;
  
  use matrix_sdk::ruma::events::room::message::RoomMessageEventContentWithoutRelation;
+ 
 diff --git a/bindings/matrix-sdk-ffi/src/normal_sync.rs b/bindings/matrix-sdk-ffi/src/normal_sync.rs
 new file mode 100644
 index 0000000..67595bd
@@ -5283,10 +5283,10 @@ index 0000000..67595bd
 \ No newline at end of file
 diff --git a/bindings/matrix-sdk-ffi/src/voip.rs b/bindings/matrix-sdk-ffi/src/voip.rs
 new file mode 100644
-index 0000000..3762a60
+index 0000000..ba28e10
 --- /dev/null
 +++ b/bindings/matrix-sdk-ffi/src/voip.rs
-@@ -0,0 +1,133 @@
+@@ -0,0 +1,134 @@
 +// Copyright 2024 The Matrix.org Foundation C.I.C.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -5394,6 +5394,7 @@ index 0000000..3762a60
 +    Video,
 +}
 +
++
 +/// Simplified call event data for sending
 +#[derive(Clone, uniffi::Record)]
 +pub struct OutgoingCallInvite {
@@ -5419,6 +5420,164 @@ index 0000000..3762a60
 +pub struct OutgoingCallHangup {
 +    pub call_id: String,
 +    pub reason: Option<String>,
++}
+\ No newline at end of file
+diff --git a/bindings/matrix-sdk-ffi/src/voip_sender.rs b/bindings/matrix-sdk-ffi/src/voip_sender.rs
+new file mode 100644
+index 0000000..82d90a4
+--- /dev/null
++++ b/bindings/matrix-sdk-ffi/src/voip_sender.rs
+@@ -0,0 +1,151 @@
++// Copyright 2024 The Matrix.org Foundation C.I.C.
++//
++// VoIP event sending methods for P2P calls
++// These methods send properly formatted call events that will be picked up
++// by the global event handlers on the receiving side
++
++use matrix_sdk::ruma::{
++    events::call::{
++        invite::CallInviteEventContent,
++        answer::CallAnswerEventContent,
++        candidates::{CallCandidatesEventContent, Candidate},
++        hangup::{CallHangupEventContent, HangupReason},
++        SessionDescription as RumaSessionDescription,
++        Sdp,
++    },
++    serde::Raw,
++    UInt,
++};
++use std::sync::Arc;
++
++use crate::{
++    client::Client,
++    error::ClientError,
++    room::Room,
++    voip::{OutgoingCallInvite, OutgoingCallAnswer, OutgoingCallCandidates, OutgoingCallHangup, IceCandidate},
++};
++
++#[matrix_sdk_ffi_macros::export]
++impl Room {
++    /// Send a VoIP call invite event
++    /// For P2P: The offer_sdp should contain your WebRTC offer with direct connection info
++    pub async fn send_call_invite(
++        &self,
++        invite: OutgoingCallInvite,
++    ) -> Result<(), ClientError> {
++        let room = self.inner.clone();
++
++        // Create the call invite content
++        let content = CallInviteEventContent::new(
++            invite.call_id.into(),
++            UInt::new(invite.lifetime.into()).unwrap_or(UInt::from(60000u32)),
++            RumaSessionDescription::Offer(Sdp {
++                sdp: invite.offer_sdp,
++            }),
++            match invite.call_type {
++                crate::voip::CallType::Voice => ruma::events::call::CallType::Voice,
++                crate::voip::CallType::Video => ruma::events::call::CallType::Video,
++            },
++            UInt::from(1u32), // Version 1 for now
++        );
++
++        // Send as room event
++        room.send_state_event(content).await
++            .map_err(|e| ClientError::Generic {
++                msg: format!("Failed to send call invite: {}", e),
++                details: None,
++            })?;
++
++        Ok(())
++    }
++
++    /// Send a VoIP call answer event
++    /// For P2P: The answer_sdp should contain your WebRTC answer for direct connection
++    pub async fn send_call_answer(
++        &self,
++        answer: OutgoingCallAnswer,
++    ) -> Result<(), ClientError> {
++        let room = self.inner.clone();
++
++        let content = CallAnswerEventContent::new(
++            answer.call_id.into(),
++            RumaSessionDescription::Answer(Sdp {
++                sdp: answer.answer_sdp,
++            }),
++            UInt::from(1u32), // Version
++        );
++
++        room.send_state_event(content).await
++            .map_err(|e| ClientError::Generic {
++                msg: format!("Failed to send call answer: {}", e),
++                details: None,
++            })?;
++
++        Ok(())
++    }
++
++    /// Send ICE candidates for P2P NAT traversal
++    /// Critical for establishing direct peer-to-peer connections
++    pub async fn send_call_candidates(
++        &self,
++        candidates: OutgoingCallCandidates,
++    ) -> Result<(), ClientError> {
++        let room = self.inner.clone();
++
++        // Convert our ICE candidates to Ruma format
++        let ruma_candidates: Vec<Candidate> = candidates
++            .candidates
++            .into_iter()
++            .map(|c| Candidate {
++                candidate: c.candidate,
++                sdp_mid: c.sdp_mid,
++                sdp_m_line_index: c.sdp_m_line_index.map(|i| i.into()),
++            })
++            .collect();
++
++        let content = CallCandidatesEventContent::new(
++            candidates.call_id.into(),
++            ruma_candidates,
++            UInt::from(1u32), // Version
++        );
++
++        room.send_state_event(content).await
++            .map_err(|e| ClientError::Generic {
++                msg: format!("Failed to send call candidates: {}", e),
++                details: None,
++            })?;
++
++        Ok(())
++    }
++
++    /// Send call hangup event
++    pub async fn send_call_hangup(
++        &self,
++        hangup: OutgoingCallHangup,
++    ) -> Result<(), ClientError> {
++        let room = self.inner.clone();
++
++        let mut content = CallHangupEventContent::new(
++            hangup.call_id.into(),
++            UInt::from(1u32), // Version
++        );
++
++        // Add reason if provided
++        if let Some(reason_str) = hangup.reason {
++            // Parse reason string to enum (you might want to improve this)
++            content.reason = Some(match reason_str.as_str() {
++                "ice_failed" => HangupReason::IceFailed,
++                "invite_timeout" => HangupReason::InviteTimeout,
++                _ => HangupReason::UserHangup,
++            });
++        }
++
++        room.send_state_event(content).await
++            .map_err(|e| ClientError::Generic {
++                msg: format!("Failed to send call hangup: {}", e),
++                details: None,
++            })?;
++
++        Ok(())
++    }
 +}
 \ No newline at end of file
 diff --git a/xtask/src/swift.rs b/xtask/src/swift.rs
