@@ -5393,7 +5393,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_start_sync_loop() != 16705.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once() != 64596.toShort()) {
+    if (lib.uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once() != 15633.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_with_config() != 20778.toShort()) {
@@ -13309,7 +13309,7 @@ public interface NormalSyncManagerInterface {
     /**
      * Perform a simple one-shot sync
      */
-    suspend fun `syncOnce`(`timeoutMs`: kotlin.UInt?, `since`: kotlin.String?): kotlin.String
+    suspend fun `syncOnce`(`timeoutMs`: kotlin.UInt?, `since`: kotlin.String?): NormalSyncResult
     
     /**
      * Perform a single sync request with configuration
@@ -13436,7 +13436,7 @@ open class NormalSyncManager: Disposable, AutoCloseable, NormalSyncManagerInterf
      */
     @Throws(ClientException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-    override suspend fun `syncOnce`(`timeoutMs`: kotlin.UInt?, `since`: kotlin.String?) : kotlin.String {
+    override suspend fun `syncOnce`(`timeoutMs`: kotlin.UInt?, `since`: kotlin.String?) : NormalSyncResult {
         return uniffiRustCallAsync(
         callWithPointer { thisPtr ->
             UniffiLib.INSTANCE.uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_sync_once(
@@ -13448,7 +13448,7 @@ open class NormalSyncManager: Disposable, AutoCloseable, NormalSyncManagerInterf
         { future, continuation -> UniffiLib.INSTANCE.ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer(future, continuation) },
         { future -> UniffiLib.INSTANCE.ffi_matrix_sdk_ffi_rust_future_free_rust_buffer(future) },
         // lift function
-        { FfiConverterString.lift(it) },
+        { FfiConverterTypeNormalSyncResult.lift(it) },
         // Error FFI converter
         ClientException.ErrorHandler,
     )
@@ -29256,24 +29256,99 @@ public object FfiConverterTypeNormalSyncConfig: FfiConverterRustBuffer<NormalSyn
 
 /**
  * Result from a normal sync operation
+ *
+ * This structure contains the full sync response data from the Matrix homeserver.
+ * It provides information about which rooms were updated, notifications, and other
+ * sync-related data that can be used by the application to efficiently update the UI.
+ *
+ * # Usage in Application
+ *
+ * After calling `sync_once()`, use the returned data to:
+ * 1. Update the room list UI by iterating through `joined_room_ids`, `invited_room_ids`, etc.
+ * 2. Show notifications for rooms in `notification_room_ids`
+ * 3. Update specific rooms by calling `client.get_room(room_id)` for changed rooms
+ * 4. Pass `next_batch` to the next sync call to get incremental updates
+ *
+ * # Example
+ *
+ * ```typescript
+ * const syncResult = await normalSyncManager.syncOnce(30000, lastBatchToken);
+ *
+ * // Process joined rooms that had updates
+ * for (const roomId of syncResult.joinedRoomIds) {
+ * const room = client.getRoom(roomId);
+ * // Update room in UI, fetch latest messages, etc.
+ * }
+ *
+ * // Handle notifications
+ * for (const roomId of syncResult.notificationRoomIds) {
+ * const room = client.getRoom(roomId);
+ * // Show notification badge, play sound, etc.
+ * }
+ *
+ * // Store for next sync
+ * lastBatchToken = syncResult.nextBatch;
+ * ```
+ *
+ * # Timestamp
+ * Last updated: 2024-09-30
+
  */
 data class NormalSyncResult (
     /**
-     * The next batch token for incremental sync
+     * The next batch token for incremental sync.
+     * Pass this value to the `since` parameter of the next sync call
+     * to receive only updates that occurred after this sync.
      */
     var `nextBatch`: kotlin.String, 
     /**
-     * Number of rooms with updates
+     * IDs of joined rooms that received updates in this sync.
+     * These rooms may have new messages, state changes, typing notifications,
+     * read receipts, or other updates. Use `client.get_room(room_id)` to
+     * access the updated room data.
      */
-    var `roomsUpdated`: kotlin.UInt, 
+    var `joinedRoomIds`: List<kotlin.String>, 
     /**
-     * Whether there were presence updates
+     * IDs of rooms that the user has left or been removed from.
+     * These rooms should be removed from the active room list in the UI.
      */
-    var `hasPresenceUpdates`: kotlin.Boolean, 
+    var `leftRoomIds`: List<kotlin.String>, 
     /**
-     * Whether there were to-device messages
+     * IDs of rooms that the user has been invited to.
+     * Display these in an "invites" section and allow the user to
+     * accept or reject the invitation.
      */
-    var `hasToDeviceMessages`: kotlin.Boolean
+    var `invitedRoomIds`: List<kotlin.String>, 
+    /**
+     * IDs of rooms that the user has knocked on (requested to join).
+     * These are rooms where the user is waiting for their join request
+     * to be approved by a room member.
+     */
+    var `knockedRoomIds`: List<kotlin.String>, 
+    /**
+     * Number of presence update events received in this sync.
+     * Presence events indicate online/offline/away status of other users.
+     */
+    var `presenceEventsCount`: kotlin.UInt, 
+    /**
+     * Number of global account data events received in this sync.
+     * Account data includes user preferences, settings, and other
+     * client-specific data stored on the server.
+     */
+    var `accountDataEventsCount`: kotlin.UInt, 
+    /**
+     * Number of to-device messages received in this sync.
+     * To-device messages are used for end-to-end encryption key exchange,
+     * verification requests, and other device-to-device communication.
+     */
+    var `toDeviceEventsCount`: kotlin.UInt, 
+    /**
+     * IDs of rooms that have new notifications for the user.
+     * These rooms should display a notification badge, play a sound,
+     * or otherwise alert the user to new activity based on their
+     * notification settings.
+     */
+    var `notificationRoomIds`: List<kotlin.String>
 ) {
     
     companion object
@@ -29286,24 +29361,39 @@ public object FfiConverterTypeNormalSyncResult: FfiConverterRustBuffer<NormalSyn
     override fun read(buf: ByteBuffer): NormalSyncResult {
         return NormalSyncResult(
             FfiConverterString.read(buf),
+            FfiConverterSequenceString.read(buf),
+            FfiConverterSequenceString.read(buf),
+            FfiConverterSequenceString.read(buf),
+            FfiConverterSequenceString.read(buf),
             FfiConverterUInt.read(buf),
-            FfiConverterBoolean.read(buf),
-            FfiConverterBoolean.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterSequenceString.read(buf),
         )
     }
 
     override fun allocationSize(value: NormalSyncResult) = (
             FfiConverterString.allocationSize(value.`nextBatch`) +
-            FfiConverterUInt.allocationSize(value.`roomsUpdated`) +
-            FfiConverterBoolean.allocationSize(value.`hasPresenceUpdates`) +
-            FfiConverterBoolean.allocationSize(value.`hasToDeviceMessages`)
+            FfiConverterSequenceString.allocationSize(value.`joinedRoomIds`) +
+            FfiConverterSequenceString.allocationSize(value.`leftRoomIds`) +
+            FfiConverterSequenceString.allocationSize(value.`invitedRoomIds`) +
+            FfiConverterSequenceString.allocationSize(value.`knockedRoomIds`) +
+            FfiConverterUInt.allocationSize(value.`presenceEventsCount`) +
+            FfiConverterUInt.allocationSize(value.`accountDataEventsCount`) +
+            FfiConverterUInt.allocationSize(value.`toDeviceEventsCount`) +
+            FfiConverterSequenceString.allocationSize(value.`notificationRoomIds`)
     )
 
     override fun write(value: NormalSyncResult, buf: ByteBuffer) {
             FfiConverterString.write(value.`nextBatch`, buf)
-            FfiConverterUInt.write(value.`roomsUpdated`, buf)
-            FfiConverterBoolean.write(value.`hasPresenceUpdates`, buf)
-            FfiConverterBoolean.write(value.`hasToDeviceMessages`, buf)
+            FfiConverterSequenceString.write(value.`joinedRoomIds`, buf)
+            FfiConverterSequenceString.write(value.`leftRoomIds`, buf)
+            FfiConverterSequenceString.write(value.`invitedRoomIds`, buf)
+            FfiConverterSequenceString.write(value.`knockedRoomIds`, buf)
+            FfiConverterUInt.write(value.`presenceEventsCount`, buf)
+            FfiConverterUInt.write(value.`accountDataEventsCount`, buf)
+            FfiConverterUInt.write(value.`toDeviceEventsCount`, buf)
+            FfiConverterSequenceString.write(value.`notificationRoomIds`, buf)
     }
 }
 

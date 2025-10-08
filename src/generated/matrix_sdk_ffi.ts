@@ -5043,24 +5043,99 @@ const FfiConverterTypeNormalSyncConfig = (() => {
 
 /**
  * Result from a normal sync operation
+ *
+ * This structure contains the full sync response data from the Matrix homeserver.
+ * It provides information about which rooms were updated, notifications, and other
+ * sync-related data that can be used by the application to efficiently update the UI.
+ *
+ * # Usage in Application
+ *
+ * After calling `sync_once()`, use the returned data to:
+ * 1. Update the room list UI by iterating through `joined_room_ids`, `invited_room_ids`, etc.
+ * 2. Show notifications for rooms in `notification_room_ids`
+ * 3. Update specific rooms by calling `client.get_room(room_id)` for changed rooms
+ * 4. Pass `next_batch` to the next sync call to get incremental updates
+ *
+ * # Example
+ *
+ * ```typescript
+ * const syncResult = await normalSyncManager.syncOnce(30000, lastBatchToken);
+ *
+ * // Process joined rooms that had updates
+ * for (const roomId of syncResult.joinedRoomIds) {
+ * const room = client.getRoom(roomId);
+ * // Update room in UI, fetch latest messages, etc.
+ * }
+ *
+ * // Handle notifications
+ * for (const roomId of syncResult.notificationRoomIds) {
+ * const room = client.getRoom(roomId);
+ * // Show notification badge, play sound, etc.
+ * }
+ *
+ * // Store for next sync
+ * lastBatchToken = syncResult.nextBatch;
+ * ```
+ *
+ * # Timestamp
+ * Last updated: 2024-09-30
+
  */
 export type NormalSyncResult = {
   /**
-   * The next batch token for incremental sync
+   * The next batch token for incremental sync.
+   * Pass this value to the `since` parameter of the next sync call
+   * to receive only updates that occurred after this sync.
    */
   nextBatch: string;
   /**
-   * Number of rooms with updates
+   * IDs of joined rooms that received updates in this sync.
+   * These rooms may have new messages, state changes, typing notifications,
+   * read receipts, or other updates. Use `client.get_room(room_id)` to
+   * access the updated room data.
    */
-  roomsUpdated: /*u32*/ number;
+  joinedRoomIds: Array<string>;
   /**
-   * Whether there were presence updates
+   * IDs of rooms that the user has left or been removed from.
+   * These rooms should be removed from the active room list in the UI.
    */
-  hasPresenceUpdates: boolean;
+  leftRoomIds: Array<string>;
   /**
-   * Whether there were to-device messages
+   * IDs of rooms that the user has been invited to.
+   * Display these in an "invites" section and allow the user to
+   * accept or reject the invitation.
    */
-  hasToDeviceMessages: boolean;
+  invitedRoomIds: Array<string>;
+  /**
+   * IDs of rooms that the user has knocked on (requested to join).
+   * These are rooms where the user is waiting for their join request
+   * to be approved by a room member.
+   */
+  knockedRoomIds: Array<string>;
+  /**
+   * Number of presence update events received in this sync.
+   * Presence events indicate online/offline/away status of other users.
+   */
+  presenceEventsCount: /*u32*/ number;
+  /**
+   * Number of global account data events received in this sync.
+   * Account data includes user preferences, settings, and other
+   * client-specific data stored on the server.
+   */
+  accountDataEventsCount: /*u32*/ number;
+  /**
+   * Number of to-device messages received in this sync.
+   * To-device messages are used for end-to-end encryption key exchange,
+   * verification requests, and other device-to-device communication.
+   */
+  toDeviceEventsCount: /*u32*/ number;
+  /**
+   * IDs of rooms that have new notifications for the user.
+   * These rooms should display a notification badge, play a sound,
+   * or otherwise alert the user to new activity based on their
+   * notification settings.
+   */
+  notificationRoomIds: Array<string>;
 };
 
 /**
@@ -5099,23 +5174,38 @@ const FfiConverterTypeNormalSyncResult = (() => {
     read(from: RustBuffer): TypeName {
       return {
         nextBatch: FfiConverterString.read(from),
-        roomsUpdated: FfiConverterUInt32.read(from),
-        hasPresenceUpdates: FfiConverterBool.read(from),
-        hasToDeviceMessages: FfiConverterBool.read(from),
+        joinedRoomIds: FfiConverterArrayString.read(from),
+        leftRoomIds: FfiConverterArrayString.read(from),
+        invitedRoomIds: FfiConverterArrayString.read(from),
+        knockedRoomIds: FfiConverterArrayString.read(from),
+        presenceEventsCount: FfiConverterUInt32.read(from),
+        accountDataEventsCount: FfiConverterUInt32.read(from),
+        toDeviceEventsCount: FfiConverterUInt32.read(from),
+        notificationRoomIds: FfiConverterArrayString.read(from),
       };
     }
     write(value: TypeName, into: RustBuffer): void {
       FfiConverterString.write(value.nextBatch, into);
-      FfiConverterUInt32.write(value.roomsUpdated, into);
-      FfiConverterBool.write(value.hasPresenceUpdates, into);
-      FfiConverterBool.write(value.hasToDeviceMessages, into);
+      FfiConverterArrayString.write(value.joinedRoomIds, into);
+      FfiConverterArrayString.write(value.leftRoomIds, into);
+      FfiConverterArrayString.write(value.invitedRoomIds, into);
+      FfiConverterArrayString.write(value.knockedRoomIds, into);
+      FfiConverterUInt32.write(value.presenceEventsCount, into);
+      FfiConverterUInt32.write(value.accountDataEventsCount, into);
+      FfiConverterUInt32.write(value.toDeviceEventsCount, into);
+      FfiConverterArrayString.write(value.notificationRoomIds, into);
     }
     allocationSize(value: TypeName): number {
       return (
         FfiConverterString.allocationSize(value.nextBatch) +
-        FfiConverterUInt32.allocationSize(value.roomsUpdated) +
-        FfiConverterBool.allocationSize(value.hasPresenceUpdates) +
-        FfiConverterBool.allocationSize(value.hasToDeviceMessages)
+        FfiConverterArrayString.allocationSize(value.joinedRoomIds) +
+        FfiConverterArrayString.allocationSize(value.leftRoomIds) +
+        FfiConverterArrayString.allocationSize(value.invitedRoomIds) +
+        FfiConverterArrayString.allocationSize(value.knockedRoomIds) +
+        FfiConverterUInt32.allocationSize(value.presenceEventsCount) +
+        FfiConverterUInt32.allocationSize(value.accountDataEventsCount) +
+        FfiConverterUInt32.allocationSize(value.toDeviceEventsCount) +
+        FfiConverterArrayString.allocationSize(value.notificationRoomIds)
       );
     }
   }
@@ -41211,7 +41301,7 @@ export interface NormalSyncManagerInterface {
     timeoutMs: /*u32*/ number | undefined,
     since: string | undefined,
     asyncOpts_?: { signal: AbortSignal }
-  ) /*throws*/ : Promise<string>;
+  ) /*throws*/ : Promise<NormalSyncResult>;
   /**
    * Perform a single sync request with configuration
    */
@@ -41289,7 +41379,7 @@ export class NormalSyncManager
     timeoutMs: /*u32*/ number | undefined,
     since: string | undefined,
     asyncOpts_?: { signal: AbortSignal }
-  ): Promise<string> /*throws*/ {
+  ): Promise<NormalSyncResult> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -41309,7 +41399,9 @@ export class NormalSyncManager
           .ubrn_ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
         /*freeFunc:*/ nativeModule()
           .ubrn_ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
-        /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
+        /*liftFunc:*/ FfiConverterTypeNormalSyncResult.lift.bind(
+          FfiConverterTypeNormalSyncResult
+        ),
         /*liftString:*/ FfiConverterString.lift,
         /*asyncOpts:*/ asyncOpts_,
         /*errorHandler:*/ FfiConverterTypeClientError.lift.bind(
@@ -56627,7 +56719,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once() !==
-    64596
+    15633
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       'uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once'

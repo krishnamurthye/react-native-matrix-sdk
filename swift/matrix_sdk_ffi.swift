@@ -648,6 +648,15 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func accountUrl(action: AccountManagementAction?) async throws  -> String?
     
     /**
+     * Add a global listener for VoIP call events
+     * This is critical for P2P calls where the receiver might not have a timeline open
+     *
+     * The listener will receive all call events (invite, answer, candidates, hangup, etc.)
+     * even when the app is in background or no room is open
+     */
+    func addCallEventListener(listener: CallEventListener) async throws  -> TaskHandle
+    
+    /**
      * Find all sliding sync versions that are available.
      *
      * Be careful: This method may hit the store and will send new requests for
@@ -912,6 +921,12 @@ public protocol ClientProtocol: AnyObject, Sendable {
      * Log the current user out.
      */
     func logout() async throws 
+    
+    /**
+     * Get the traditional sync manager for normal (v3) sync operations
+     * This provides access to the standard Matrix /sync endpoint
+     */
+    func normalSync()  -> NormalSyncManager
     
     func notificationClient(processSetup: NotificationProcessSetup) async throws  -> NotificationClient
     
@@ -1229,6 +1244,30 @@ open func accountUrl(action: AccountManagementAction?)async throws  -> String?  
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionString.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Add a global listener for VoIP call events
+     * This is critical for P2P calls where the receiver might not have a timeline open
+     *
+     * The listener will receive all call events (invite, answer, candidates, hangup, etc.)
+     * even when the app is in background or no room is open
+     */
+open func addCallEventListener(listener: CallEventListener)async throws  -> TaskHandle  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_add_call_event_listener(
+                    self.uniffiClonePointer(),
+                    FfiConverterCallbackInterfaceCallEventListener_lower(listener)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeTaskHandle_lift,
             errorHandler: FfiConverterTypeClientError_lift
         )
 }
@@ -2103,6 +2142,17 @@ open func logout()async throws   {
             liftFunc: { $0 },
             errorHandler: FfiConverterTypeClientError_lift
         )
+}
+    
+    /**
+     * Get the traditional sync manager for normal (v3) sync operations
+     * This provides access to the standard Matrix /sync endpoint
+     */
+open func normalSync() -> NormalSyncManager  {
+    return try!  FfiConverterTypeNormalSyncManager_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_client_normal_sync(self.uniffiClonePointer(),$0
+    )
+})
 }
     
 open func notificationClient(processSetup: NotificationProcessSetup)async throws  -> NotificationClient  {
@@ -5146,6 +5196,202 @@ public func FfiConverterTypeMediaSource_lift(_ pointer: UnsafeMutableRawPointer)
 #endif
 public func FfiConverterTypeMediaSource_lower(_ value: MediaSource) -> UnsafeMutableRawPointer {
     return FfiConverterTypeMediaSource.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Manager for traditional/normal sync operations
+ */
+public protocol NormalSyncManagerProtocol: AnyObject, Sendable {
+    
+    /**
+     * Start a continuous sync loop helper
+     * This is a helper method - actual loop should be implemented in TypeScript
+     */
+    func startSyncLoop(timeoutMs: UInt32?, fullState: Bool) async throws 
+    
+    /**
+     * Perform a simple one-shot sync
+     */
+    func syncOnce(timeoutMs: UInt32?, since: String?) async throws  -> NormalSyncResult
+    
+    /**
+     * Perform a single sync request with configuration
+     */
+    func syncWithConfig(config: NormalSyncConfig) async throws  -> NormalSyncResult
+    
+}
+/**
+ * Manager for traditional/normal sync operations
+ */
+open class NormalSyncManager: NormalSyncManagerProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_normalsyncmanager(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_normalsyncmanager(pointer, $0) }
+    }
+
+    
+
+    
+    /**
+     * Start a continuous sync loop helper
+     * This is a helper method - actual loop should be implemented in TypeScript
+     */
+open func startSyncLoop(timeoutMs: UInt32?, fullState: Bool)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_start_sync_loop(
+                    self.uniffiClonePointer(),
+                    FfiConverterOptionUInt32.lower(timeoutMs),FfiConverterBool.lower(fullState)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Perform a simple one-shot sync
+     */
+open func syncOnce(timeoutMs: UInt32?, since: String?)async throws  -> NormalSyncResult  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_sync_once(
+                    self.uniffiClonePointer(),
+                    FfiConverterOptionUInt32.lower(timeoutMs),FfiConverterOptionString.lower(since)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeNormalSyncResult_lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Perform a single sync request with configuration
+     */
+open func syncWithConfig(config: NormalSyncConfig)async throws  -> NormalSyncResult  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_normalsyncmanager_sync_with_config(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeNormalSyncConfig_lower(config)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeNormalSyncResult_lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNormalSyncManager: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = NormalSyncManager
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NormalSyncManager {
+        return NormalSyncManager(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: NormalSyncManager) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NormalSyncManager {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: NormalSyncManager, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalSyncManager_lift(_ pointer: UnsafeMutableRawPointer) throws -> NormalSyncManager {
+    return try FfiConverterTypeNormalSyncManager.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalSyncManager_lower(_ value: NormalSyncManager) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeNormalSyncManager.lower(value)
 }
 
 
@@ -15938,6 +16184,87 @@ public func FfiConverterTypeHttpPusherData_lower(_ value: HttpPusherData) -> Rus
 }
 
 
+/**
+ * ICE candidate for WebRTC
+ */
+public struct IceCandidate {
+    public var candidate: String
+    public var sdpMid: String?
+    public var sdpMLineIndex: UInt16?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(candidate: String, sdpMid: String?, sdpMLineIndex: UInt16?) {
+        self.candidate = candidate
+        self.sdpMid = sdpMid
+        self.sdpMLineIndex = sdpMLineIndex
+    }
+}
+
+#if compiler(>=6)
+extension IceCandidate: Sendable {}
+#endif
+
+
+extension IceCandidate: Equatable, Hashable {
+    public static func ==(lhs: IceCandidate, rhs: IceCandidate) -> Bool {
+        if lhs.candidate != rhs.candidate {
+            return false
+        }
+        if lhs.sdpMid != rhs.sdpMid {
+            return false
+        }
+        if lhs.sdpMLineIndex != rhs.sdpMLineIndex {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(candidate)
+        hasher.combine(sdpMid)
+        hasher.combine(sdpMLineIndex)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIceCandidate: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IceCandidate {
+        return
+            try IceCandidate(
+                candidate: FfiConverterString.read(from: &buf), 
+                sdpMid: FfiConverterOptionString.read(from: &buf), 
+                sdpMLineIndex: FfiConverterOptionUInt16.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: IceCandidate, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.candidate, into: &buf)
+        FfiConverterOptionString.write(value.sdpMid, into: &buf)
+        FfiConverterOptionUInt16.write(value.sdpMLineIndex, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIceCandidate_lift(_ buf: RustBuffer) throws -> IceCandidate {
+    return try FfiConverterTypeIceCandidate.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIceCandidate_lower(_ value: IceCandidate) -> RustBuffer {
+    return FfiConverterTypeIceCandidate.lower(value)
+}
+
+
 public struct IdentityStatusChange {
     /**
      * The user ID of the user whose identity status changed
@@ -17071,6 +17398,361 @@ public func FfiConverterTypeMsgLikeContent_lower(_ value: MsgLikeContent) -> Rus
 }
 
 
+/**
+ * Configuration for normal sync
+ */
+public struct NormalSyncConfig {
+    /**
+     * Timeout in milliseconds for long polling
+     */
+    public var timeoutMs: UInt32
+    /**
+     * Whether to request full state on first sync
+     */
+    public var fullState: Bool
+    /**
+     * Set presence state (online, offline, unavailable)
+     */
+    public var setPresence: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Timeout in milliseconds for long polling
+         */timeoutMs: UInt32, 
+        /**
+         * Whether to request full state on first sync
+         */fullState: Bool, 
+        /**
+         * Set presence state (online, offline, unavailable)
+         */setPresence: String?) {
+        self.timeoutMs = timeoutMs
+        self.fullState = fullState
+        self.setPresence = setPresence
+    }
+}
+
+#if compiler(>=6)
+extension NormalSyncConfig: Sendable {}
+#endif
+
+
+extension NormalSyncConfig: Equatable, Hashable {
+    public static func ==(lhs: NormalSyncConfig, rhs: NormalSyncConfig) -> Bool {
+        if lhs.timeoutMs != rhs.timeoutMs {
+            return false
+        }
+        if lhs.fullState != rhs.fullState {
+            return false
+        }
+        if lhs.setPresence != rhs.setPresence {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(timeoutMs)
+        hasher.combine(fullState)
+        hasher.combine(setPresence)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNormalSyncConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NormalSyncConfig {
+        return
+            try NormalSyncConfig(
+                timeoutMs: FfiConverterUInt32.read(from: &buf), 
+                fullState: FfiConverterBool.read(from: &buf), 
+                setPresence: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NormalSyncConfig, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.timeoutMs, into: &buf)
+        FfiConverterBool.write(value.fullState, into: &buf)
+        FfiConverterOptionString.write(value.setPresence, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalSyncConfig_lift(_ buf: RustBuffer) throws -> NormalSyncConfig {
+    return try FfiConverterTypeNormalSyncConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalSyncConfig_lower(_ value: NormalSyncConfig) -> RustBuffer {
+    return FfiConverterTypeNormalSyncConfig.lower(value)
+}
+
+
+/**
+ * Result from a normal sync operation
+ *
+ * This structure contains the full sync response data from the Matrix homeserver.
+ * It provides information about which rooms were updated, notifications, and other
+ * sync-related data that can be used by the application to efficiently update the UI.
+ *
+ * # Usage in Application
+ *
+ * After calling `sync_once()`, use the returned data to:
+ * 1. Update the room list UI by iterating through `joined_room_ids`, `invited_room_ids`, etc.
+ * 2. Show notifications for rooms in `notification_room_ids`
+ * 3. Update specific rooms by calling `client.get_room(room_id)` for changed rooms
+ * 4. Pass `next_batch` to the next sync call to get incremental updates
+ *
+ * # Example
+ *
+ * ```typescript
+ * const syncResult = await normalSyncManager.syncOnce(30000, lastBatchToken);
+ *
+ * // Process joined rooms that had updates
+ * for (const roomId of syncResult.joinedRoomIds) {
+ * const room = client.getRoom(roomId);
+ * // Update room in UI, fetch latest messages, etc.
+ * }
+ *
+ * // Handle notifications
+ * for (const roomId of syncResult.notificationRoomIds) {
+ * const room = client.getRoom(roomId);
+ * // Show notification badge, play sound, etc.
+ * }
+ *
+ * // Store for next sync
+ * lastBatchToken = syncResult.nextBatch;
+ * ```
+ *
+ * # Timestamp
+ * Last updated: 2024-09-30
+
+ */
+public struct NormalSyncResult {
+    /**
+     * The next batch token for incremental sync.
+     * Pass this value to the `since` parameter of the next sync call
+     * to receive only updates that occurred after this sync.
+     */
+    public var nextBatch: String
+    /**
+     * IDs of joined rooms that received updates in this sync.
+     * These rooms may have new messages, state changes, typing notifications,
+     * read receipts, or other updates. Use `client.get_room(room_id)` to
+     * access the updated room data.
+     */
+    public var joinedRoomIds: [String]
+    /**
+     * IDs of rooms that the user has left or been removed from.
+     * These rooms should be removed from the active room list in the UI.
+     */
+    public var leftRoomIds: [String]
+    /**
+     * IDs of rooms that the user has been invited to.
+     * Display these in an "invites" section and allow the user to
+     * accept or reject the invitation.
+     */
+    public var invitedRoomIds: [String]
+    /**
+     * IDs of rooms that the user has knocked on (requested to join).
+     * These are rooms where the user is waiting for their join request
+     * to be approved by a room member.
+     */
+    public var knockedRoomIds: [String]
+    /**
+     * Number of presence update events received in this sync.
+     * Presence events indicate online/offline/away status of other users.
+     */
+    public var presenceEventsCount: UInt32
+    /**
+     * Number of global account data events received in this sync.
+     * Account data includes user preferences, settings, and other
+     * client-specific data stored on the server.
+     */
+    public var accountDataEventsCount: UInt32
+    /**
+     * Number of to-device messages received in this sync.
+     * To-device messages are used for end-to-end encryption key exchange,
+     * verification requests, and other device-to-device communication.
+     */
+    public var toDeviceEventsCount: UInt32
+    /**
+     * IDs of rooms that have new notifications for the user.
+     * These rooms should display a notification badge, play a sound,
+     * or otherwise alert the user to new activity based on their
+     * notification settings.
+     */
+    public var notificationRoomIds: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The next batch token for incremental sync.
+         * Pass this value to the `since` parameter of the next sync call
+         * to receive only updates that occurred after this sync.
+         */nextBatch: String, 
+        /**
+         * IDs of joined rooms that received updates in this sync.
+         * These rooms may have new messages, state changes, typing notifications,
+         * read receipts, or other updates. Use `client.get_room(room_id)` to
+         * access the updated room data.
+         */joinedRoomIds: [String], 
+        /**
+         * IDs of rooms that the user has left or been removed from.
+         * These rooms should be removed from the active room list in the UI.
+         */leftRoomIds: [String], 
+        /**
+         * IDs of rooms that the user has been invited to.
+         * Display these in an "invites" section and allow the user to
+         * accept or reject the invitation.
+         */invitedRoomIds: [String], 
+        /**
+         * IDs of rooms that the user has knocked on (requested to join).
+         * These are rooms where the user is waiting for their join request
+         * to be approved by a room member.
+         */knockedRoomIds: [String], 
+        /**
+         * Number of presence update events received in this sync.
+         * Presence events indicate online/offline/away status of other users.
+         */presenceEventsCount: UInt32, 
+        /**
+         * Number of global account data events received in this sync.
+         * Account data includes user preferences, settings, and other
+         * client-specific data stored on the server.
+         */accountDataEventsCount: UInt32, 
+        /**
+         * Number of to-device messages received in this sync.
+         * To-device messages are used for end-to-end encryption key exchange,
+         * verification requests, and other device-to-device communication.
+         */toDeviceEventsCount: UInt32, 
+        /**
+         * IDs of rooms that have new notifications for the user.
+         * These rooms should display a notification badge, play a sound,
+         * or otherwise alert the user to new activity based on their
+         * notification settings.
+         */notificationRoomIds: [String]) {
+        self.nextBatch = nextBatch
+        self.joinedRoomIds = joinedRoomIds
+        self.leftRoomIds = leftRoomIds
+        self.invitedRoomIds = invitedRoomIds
+        self.knockedRoomIds = knockedRoomIds
+        self.presenceEventsCount = presenceEventsCount
+        self.accountDataEventsCount = accountDataEventsCount
+        self.toDeviceEventsCount = toDeviceEventsCount
+        self.notificationRoomIds = notificationRoomIds
+    }
+}
+
+#if compiler(>=6)
+extension NormalSyncResult: Sendable {}
+#endif
+
+
+extension NormalSyncResult: Equatable, Hashable {
+    public static func ==(lhs: NormalSyncResult, rhs: NormalSyncResult) -> Bool {
+        if lhs.nextBatch != rhs.nextBatch {
+            return false
+        }
+        if lhs.joinedRoomIds != rhs.joinedRoomIds {
+            return false
+        }
+        if lhs.leftRoomIds != rhs.leftRoomIds {
+            return false
+        }
+        if lhs.invitedRoomIds != rhs.invitedRoomIds {
+            return false
+        }
+        if lhs.knockedRoomIds != rhs.knockedRoomIds {
+            return false
+        }
+        if lhs.presenceEventsCount != rhs.presenceEventsCount {
+            return false
+        }
+        if lhs.accountDataEventsCount != rhs.accountDataEventsCount {
+            return false
+        }
+        if lhs.toDeviceEventsCount != rhs.toDeviceEventsCount {
+            return false
+        }
+        if lhs.notificationRoomIds != rhs.notificationRoomIds {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(nextBatch)
+        hasher.combine(joinedRoomIds)
+        hasher.combine(leftRoomIds)
+        hasher.combine(invitedRoomIds)
+        hasher.combine(knockedRoomIds)
+        hasher.combine(presenceEventsCount)
+        hasher.combine(accountDataEventsCount)
+        hasher.combine(toDeviceEventsCount)
+        hasher.combine(notificationRoomIds)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNormalSyncResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NormalSyncResult {
+        return
+            try NormalSyncResult(
+                nextBatch: FfiConverterString.read(from: &buf), 
+                joinedRoomIds: FfiConverterSequenceString.read(from: &buf), 
+                leftRoomIds: FfiConverterSequenceString.read(from: &buf), 
+                invitedRoomIds: FfiConverterSequenceString.read(from: &buf), 
+                knockedRoomIds: FfiConverterSequenceString.read(from: &buf), 
+                presenceEventsCount: FfiConverterUInt32.read(from: &buf), 
+                accountDataEventsCount: FfiConverterUInt32.read(from: &buf), 
+                toDeviceEventsCount: FfiConverterUInt32.read(from: &buf), 
+                notificationRoomIds: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NormalSyncResult, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.nextBatch, into: &buf)
+        FfiConverterSequenceString.write(value.joinedRoomIds, into: &buf)
+        FfiConverterSequenceString.write(value.leftRoomIds, into: &buf)
+        FfiConverterSequenceString.write(value.invitedRoomIds, into: &buf)
+        FfiConverterSequenceString.write(value.knockedRoomIds, into: &buf)
+        FfiConverterUInt32.write(value.presenceEventsCount, into: &buf)
+        FfiConverterUInt32.write(value.accountDataEventsCount, into: &buf)
+        FfiConverterUInt32.write(value.toDeviceEventsCount, into: &buf)
+        FfiConverterSequenceString.write(value.notificationRoomIds, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalSyncResult_lift(_ buf: RustBuffer) throws -> NormalSyncResult {
+    return try FfiConverterTypeNormalSyncResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalSyncResult_lower(_ value: NormalSyncResult) -> RustBuffer {
+    return FfiConverterTypeNormalSyncResult.lower(value)
+}
+
+
 public struct NoticeMessageContent {
     public var body: String
     public var formatted: FormattedBody?
@@ -17780,6 +18462,305 @@ public func FfiConverterTypeOidcCrossSigningResetInfo_lift(_ buf: RustBuffer) th
 #endif
 public func FfiConverterTypeOidcCrossSigningResetInfo_lower(_ value: OidcCrossSigningResetInfo) -> RustBuffer {
     return FfiConverterTypeOidcCrossSigningResetInfo.lower(value)
+}
+
+
+public struct OutgoingCallAnswer {
+    public var callId: String
+    public var answerSdp: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(callId: String, answerSdp: String) {
+        self.callId = callId
+        self.answerSdp = answerSdp
+    }
+}
+
+#if compiler(>=6)
+extension OutgoingCallAnswer: Sendable {}
+#endif
+
+
+extension OutgoingCallAnswer: Equatable, Hashable {
+    public static func ==(lhs: OutgoingCallAnswer, rhs: OutgoingCallAnswer) -> Bool {
+        if lhs.callId != rhs.callId {
+            return false
+        }
+        if lhs.answerSdp != rhs.answerSdp {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(callId)
+        hasher.combine(answerSdp)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOutgoingCallAnswer: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OutgoingCallAnswer {
+        return
+            try OutgoingCallAnswer(
+                callId: FfiConverterString.read(from: &buf), 
+                answerSdp: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OutgoingCallAnswer, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.callId, into: &buf)
+        FfiConverterString.write(value.answerSdp, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallAnswer_lift(_ buf: RustBuffer) throws -> OutgoingCallAnswer {
+    return try FfiConverterTypeOutgoingCallAnswer.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallAnswer_lower(_ value: OutgoingCallAnswer) -> RustBuffer {
+    return FfiConverterTypeOutgoingCallAnswer.lower(value)
+}
+
+
+public struct OutgoingCallCandidates {
+    public var callId: String
+    public var candidates: [IceCandidate]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(callId: String, candidates: [IceCandidate]) {
+        self.callId = callId
+        self.candidates = candidates
+    }
+}
+
+#if compiler(>=6)
+extension OutgoingCallCandidates: Sendable {}
+#endif
+
+
+extension OutgoingCallCandidates: Equatable, Hashable {
+    public static func ==(lhs: OutgoingCallCandidates, rhs: OutgoingCallCandidates) -> Bool {
+        if lhs.callId != rhs.callId {
+            return false
+        }
+        if lhs.candidates != rhs.candidates {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(callId)
+        hasher.combine(candidates)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOutgoingCallCandidates: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OutgoingCallCandidates {
+        return
+            try OutgoingCallCandidates(
+                callId: FfiConverterString.read(from: &buf), 
+                candidates: FfiConverterSequenceTypeIceCandidate.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OutgoingCallCandidates, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.callId, into: &buf)
+        FfiConverterSequenceTypeIceCandidate.write(value.candidates, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallCandidates_lift(_ buf: RustBuffer) throws -> OutgoingCallCandidates {
+    return try FfiConverterTypeOutgoingCallCandidates.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallCandidates_lower(_ value: OutgoingCallCandidates) -> RustBuffer {
+    return FfiConverterTypeOutgoingCallCandidates.lower(value)
+}
+
+
+public struct OutgoingCallHangup {
+    public var callId: String
+    public var reason: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(callId: String, reason: String?) {
+        self.callId = callId
+        self.reason = reason
+    }
+}
+
+#if compiler(>=6)
+extension OutgoingCallHangup: Sendable {}
+#endif
+
+
+extension OutgoingCallHangup: Equatable, Hashable {
+    public static func ==(lhs: OutgoingCallHangup, rhs: OutgoingCallHangup) -> Bool {
+        if lhs.callId != rhs.callId {
+            return false
+        }
+        if lhs.reason != rhs.reason {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(callId)
+        hasher.combine(reason)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOutgoingCallHangup: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OutgoingCallHangup {
+        return
+            try OutgoingCallHangup(
+                callId: FfiConverterString.read(from: &buf), 
+                reason: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OutgoingCallHangup, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.callId, into: &buf)
+        FfiConverterOptionString.write(value.reason, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallHangup_lift(_ buf: RustBuffer) throws -> OutgoingCallHangup {
+    return try FfiConverterTypeOutgoingCallHangup.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallHangup_lower(_ value: OutgoingCallHangup) -> RustBuffer {
+    return FfiConverterTypeOutgoingCallHangup.lower(value)
+}
+
+
+/**
+ * Simplified call event data for sending
+ */
+public struct OutgoingCallInvite {
+    public var callId: String
+    public var offerSdp: String
+    public var callType: CallType
+    public var lifetime: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(callId: String, offerSdp: String, callType: CallType, lifetime: UInt32) {
+        self.callId = callId
+        self.offerSdp = offerSdp
+        self.callType = callType
+        self.lifetime = lifetime
+    }
+}
+
+#if compiler(>=6)
+extension OutgoingCallInvite: Sendable {}
+#endif
+
+
+extension OutgoingCallInvite: Equatable, Hashable {
+    public static func ==(lhs: OutgoingCallInvite, rhs: OutgoingCallInvite) -> Bool {
+        if lhs.callId != rhs.callId {
+            return false
+        }
+        if lhs.offerSdp != rhs.offerSdp {
+            return false
+        }
+        if lhs.callType != rhs.callType {
+            return false
+        }
+        if lhs.lifetime != rhs.lifetime {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(callId)
+        hasher.combine(offerSdp)
+        hasher.combine(callType)
+        hasher.combine(lifetime)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOutgoingCallInvite: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OutgoingCallInvite {
+        return
+            try OutgoingCallInvite(
+                callId: FfiConverterString.read(from: &buf), 
+                offerSdp: FfiConverterString.read(from: &buf), 
+                callType: FfiConverterTypeCallType.read(from: &buf), 
+                lifetime: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OutgoingCallInvite, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.callId, into: &buf)
+        FfiConverterString.write(value.offerSdp, into: &buf)
+        FfiConverterTypeCallType.write(value.callType, into: &buf)
+        FfiConverterUInt32.write(value.lifetime, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallInvite_lift(_ buf: RustBuffer) throws -> OutgoingCallInvite {
+    return try FfiConverterTypeOutgoingCallInvite.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutgoingCallInvite_lower(_ value: OutgoingCallInvite) -> RustBuffer {
+    return FfiConverterTypeOutgoingCallInvite.lower(value)
 }
 
 
@@ -23964,6 +24945,79 @@ public func FfiConverterTypeBatchNotificationResult_lift(_ buf: RustBuffer) thro
 public func FfiConverterTypeBatchNotificationResult_lower(_ value: BatchNotificationResult) -> RustBuffer {
     return FfiConverterTypeBatchNotificationResult.lower(value)
 }
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Call type enum
+ */
+
+public enum CallType {
+    
+    case voice
+    case video
+}
+
+
+#if compiler(>=6)
+extension CallType: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCallType: FfiConverterRustBuffer {
+    typealias SwiftType = CallType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CallType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .voice
+        
+        case 2: return .video
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: CallType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .voice:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .video:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCallType_lift(_ buf: RustBuffer) throws -> CallType {
+    return try FfiConverterTypeCallType.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCallType_lower(_ value: CallType) -> RustBuffer {
+    return FfiConverterTypeCallType.lower(value)
+}
+
+
+extension CallType: Equatable, Hashable {}
 
 
 
@@ -35358,6 +36412,355 @@ public func FfiConverterCallbackInterfaceBackupSteadyStateListener_lower(_ v: Ba
 
 
 
+/**
+ * Global listener for VoIP call events
+ * This handles incoming calls even when no timeline is active
+ * Critical for P2P calls where receiver might not have the room open
+ */
+public protocol CallEventListener: AnyObject, Sendable {
+    
+    /**
+     * Called when receiving an m.call.invite event
+     * For P2P: Contains the WebRTC offer with direct connection info
+     */
+    func onInvite(roomId: String, callId: String, sender: String, offerSdp: String, callType: CallType, version: UInt32) 
+    
+    /**
+     * Called when receiving an m.call.answer event
+     * For P2P: Contains the WebRTC answer for direct connection
+     */
+    func onAnswer(roomId: String, callId: String, sender: String, answerSdp: String) 
+    
+    /**
+     * Called when receiving m.call.candidates events
+     * For P2P: Contains ICE candidates for NAT traversal
+     */
+    func onCandidates(roomId: String, callId: String, sender: String, candidates: [IceCandidate]) 
+    
+    /**
+     * Called when receiving an m.call.hangup event
+     */
+    func onHangup(roomId: String, callId: String, sender: String, reason: String?) 
+    
+    /**
+     * Called when receiving m.call.negotiate event (for renegotiation)
+     * Important for P2P when network conditions change
+     */
+    func onNegotiate(roomId: String, callId: String, sender: String, offerSdp: String) 
+    
+    /**
+     * Called when receiving m.call.select_answer event
+     * Used when multiple devices answer the same call
+     */
+    func onSelectAnswer(roomId: String, callId: String, sender: String, selectedPartyId: String) 
+    
+    /**
+     * Called when receiving m.call.reject event
+     */
+    func onReject(roomId: String, callId: String, sender: String, reason: String?) 
+    
+}
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceCallEventListener {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // This creates 1-element array, since this seems to be the only way to construct a const
+    // pointer that we can pass to the Rust code.
+    static let vtable: [UniffiVTableCallbackInterfaceCallEventListener] = [UniffiVTableCallbackInterfaceCallEventListener(
+        onInvite: { (
+            uniffiHandle: UInt64,
+            roomId: RustBuffer,
+            callId: RustBuffer,
+            sender: RustBuffer,
+            offerSdp: RustBuffer,
+            callType: RustBuffer,
+            version: UInt32,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onInvite(
+                     roomId: try FfiConverterString.lift(roomId),
+                     callId: try FfiConverterString.lift(callId),
+                     sender: try FfiConverterString.lift(sender),
+                     offerSdp: try FfiConverterString.lift(offerSdp),
+                     callType: try FfiConverterTypeCallType_lift(callType),
+                     version: try FfiConverterUInt32.lift(version)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onAnswer: { (
+            uniffiHandle: UInt64,
+            roomId: RustBuffer,
+            callId: RustBuffer,
+            sender: RustBuffer,
+            answerSdp: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onAnswer(
+                     roomId: try FfiConverterString.lift(roomId),
+                     callId: try FfiConverterString.lift(callId),
+                     sender: try FfiConverterString.lift(sender),
+                     answerSdp: try FfiConverterString.lift(answerSdp)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onCandidates: { (
+            uniffiHandle: UInt64,
+            roomId: RustBuffer,
+            callId: RustBuffer,
+            sender: RustBuffer,
+            candidates: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onCandidates(
+                     roomId: try FfiConverterString.lift(roomId),
+                     callId: try FfiConverterString.lift(callId),
+                     sender: try FfiConverterString.lift(sender),
+                     candidates: try FfiConverterSequenceTypeIceCandidate.lift(candidates)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onHangup: { (
+            uniffiHandle: UInt64,
+            roomId: RustBuffer,
+            callId: RustBuffer,
+            sender: RustBuffer,
+            reason: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onHangup(
+                     roomId: try FfiConverterString.lift(roomId),
+                     callId: try FfiConverterString.lift(callId),
+                     sender: try FfiConverterString.lift(sender),
+                     reason: try FfiConverterOptionString.lift(reason)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onNegotiate: { (
+            uniffiHandle: UInt64,
+            roomId: RustBuffer,
+            callId: RustBuffer,
+            sender: RustBuffer,
+            offerSdp: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onNegotiate(
+                     roomId: try FfiConverterString.lift(roomId),
+                     callId: try FfiConverterString.lift(callId),
+                     sender: try FfiConverterString.lift(sender),
+                     offerSdp: try FfiConverterString.lift(offerSdp)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onSelectAnswer: { (
+            uniffiHandle: UInt64,
+            roomId: RustBuffer,
+            callId: RustBuffer,
+            sender: RustBuffer,
+            selectedPartyId: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onSelectAnswer(
+                     roomId: try FfiConverterString.lift(roomId),
+                     callId: try FfiConverterString.lift(callId),
+                     sender: try FfiConverterString.lift(sender),
+                     selectedPartyId: try FfiConverterString.lift(selectedPartyId)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onReject: { (
+            uniffiHandle: UInt64,
+            roomId: RustBuffer,
+            callId: RustBuffer,
+            sender: RustBuffer,
+            reason: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onReject(
+                     roomId: try FfiConverterString.lift(roomId),
+                     callId: try FfiConverterString.lift(callId),
+                     sender: try FfiConverterString.lift(sender),
+                     reason: try FfiConverterOptionString.lift(reason)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceCallEventListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface CallEventListener: handle missing in uniffiFree")
+            }
+        }
+    )]
+}
+
+private func uniffiCallbackInitCallEventListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_calleventlistener(UniffiCallbackInterfaceCallEventListener.vtable)
+}
+
+// FfiConverter protocol for callback interfaces
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterCallbackInterfaceCallEventListener {
+    fileprivate static let handleMap = UniffiHandleMap<CallEventListener>()
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+extension FfiConverterCallbackInterfaceCallEventListener : FfiConverter {
+    typealias SwiftType = CallEventListener
+    typealias FfiType = UInt64
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceCallEventListener_lift(_ handle: UInt64) throws -> CallEventListener {
+    return try FfiConverterCallbackInterfaceCallEventListener.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceCallEventListener_lower(_ v: CallEventListener) -> UInt64 {
+    return FfiConverterCallbackInterfaceCallEventListener.lower(v)
+}
+
+
+
+
 public protocol ClientDelegate: AnyObject, Sendable {
     
     func didReceiveAuthError(isSoftLogout: Bool) 
@@ -40779,6 +42182,31 @@ fileprivate struct FfiConverterSequenceTypeConditionalPushRule: FfiConverterRust
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeIceCandidate: FfiConverterRustBuffer {
+    typealias SwiftType = [IceCandidate]
+
+    public static func write(_ value: [IceCandidate], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeIceCandidate.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [IceCandidate] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [IceCandidate]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeIceCandidate.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeIdentityStatusChange: FfiConverterRustBuffer {
     typealias SwiftType = [IdentityStatusChange]
 
@@ -42163,6 +43591,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 42373) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_add_call_event_listener() != 11126) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_available_sliding_sync_versions() != 35296) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -42293,6 +43724,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 42911) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_normal_sync() != 63501) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 37308) {
@@ -42617,6 +44051,15 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_url() != 62692) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_start_sync_loop() != 16705) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_once() != 15633) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_normalsyncmanager_sync_with_config() != 20778) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification() != 52873) {
@@ -43417,6 +44860,27 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_backupsteadystatelistener_on_update() != 41052) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calleventlistener_on_invite() != 35149) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calleventlistener_on_answer() != 20247) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calleventlistener_on_candidates() != 53021) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calleventlistener_on_hangup() != 2244) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calleventlistener_on_negotiate() != 46233) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calleventlistener_on_select_answer() != 6608) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calleventlistener_on_reject() != 31773) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_receive_auth_error() != 26350) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -43526,6 +44990,7 @@ private let initializationResult: InitializationResult = {
     uniffiCallbackInitAccountDataListener()
     uniffiCallbackInitBackupStateListener()
     uniffiCallbackInitBackupSteadyStateListener()
+    uniffiCallbackInitCallEventListener()
     uniffiCallbackInitClientDelegate()
     uniffiCallbackInitClientSessionDelegate()
     uniffiCallbackInitEnableRecoveryProgressListener()
@@ -43554,10 +45019,10 @@ private let initializationResult: InitializationResult = {
     uniffiCallbackInitUnableToDecryptDelegate()
     uniffiCallbackInitVerificationStateListener()
     uniffiCallbackInitWidgetCapabilitiesProvider()
-    uniffiEnsureMatrixSdkUiInitialized()
-    uniffiEnsureMatrixSdkCryptoInitialized()
-    uniffiEnsureMatrixSdkInitialized()
     uniffiEnsureMatrixSdkBaseInitialized()
+    uniffiEnsureMatrixSdkInitialized()
+    uniffiEnsureMatrixSdkCryptoInitialized()
+    uniffiEnsureMatrixSdkUiInitialized()
     uniffiEnsureMatrixSdkCommonInitialized()
     return InitializationResult.ok
 }()
